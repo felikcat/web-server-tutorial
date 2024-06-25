@@ -34,8 +34,13 @@ Select the FSN or NBG location for better peering, and use an Intel iNIC as it u
 
 . Login as the `root` user after Debian's installation is complete, or use `sudo -i` to escalate to root privileges.
 
-. Balance interrupts across CPU cores to handle high load more efficiently, which can prevent low networking performance. AppArmor is to stop software from doing what they shouldn't, hence better security: +
-`# apt install irqbalance apparmor apparmor-utils`
+. Balance interrupts across CPU cores to handle high load more efficiently, which can prevent low networking performance. AppArmor is to stop software from doing what they shouldn't, hence better security. Unattended upgrades is so you don't accidentally forget to update packages, which would cause security issues: +
+`# apt install irqbalance apparmor apparmor-utils unattended-upgrades apt-listchanges`
+
+- `# echo 'APT::Periodic::Update-Package-Lists "1";
+APT::Periodic::Unattended-Upgrade "1";' > /etc/apt/apt.conf.d/20auto-upgrades`
+
+- `# systemctl enable --now apt-daily.timer apt-daily-upgrade.timer`
 
 . Edit `/etc/fstab` and add "noatime" to the XFS partition: +
 image:fstab.png[]
@@ -150,7 +155,10 @@ vm.zone_reclaim_mode = 1
 - Follow https://apparmor.pujol.io/install/[AppArmor.d's official instructions] on installing additional AppArmor profiles.
 ** If there is a broken AppArmor profile, remove it, such as `# rm /etc/apparmor.d/home.tor-browser.firefox`.
 
-* `# aa-enforce -d /etc/apparmor.d/ qbittorrent qbittorrent-nox php-fpm`
+* Edit `/etc/apparmor.d/qbittorrent-nox` and add the following line (that contains @{HOME}):
+-  image:qbittorrent apparmor.png[] +
+Remove /storage/ if not applicable.
+- `# aa-enforce -d /etc/apparmor.d qbittorrent-nox php-fpm`
 
 * `# systemctl reboot`
 
