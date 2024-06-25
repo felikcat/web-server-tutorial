@@ -23,8 +23,6 @@ For Hetzner, be sure to select an Intel CPU as it has an iGPU, which is useful f
 AMD CPUs are better value if you never use streaming services (Plex, Emby, or Jellyfin). +
 Select the FSN or NBG location for better peering, and use an Intel iNIC as it uses less CPU than alternative network cards, and can handle a high number of global connections via libtorrent.
 
-Alternatively, there's https://my.hostingby.design/aff.php?aff=1433[hostingby.design] (referral link, thank you if you use it) which is cheaper than Hetzner and still has good performance, albeit is shared instead of dedicated, and with an upload cap of 25TB for their €19.95 plan that has 8TB of storage. 
-
 ====
 
 
