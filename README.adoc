@@ -35,7 +35,7 @@ Select the FSN or NBG location for better peering, and use an Intel iNIC as it u
 . Login as the `root` user after Debian's installation is complete, or use `sudo -i` to escalate to root privileges.
 
 . Balance interrupts across CPU cores to handle high load more efficiently, which can prevent low networking performance. AppArmor is to stop software from doing what they shouldn't, hence better security: +
-`# apt install irqbalance apparmor`
+`# apt install irqbalance apparmor apparmor-utils`
 
 . Edit `/etc/fstab` and add "noatime" to the XFS partition: +
 image:fstab.png[]
@@ -142,6 +142,15 @@ vm.zone_reclaim_mode = 1
 ```
 
 * A recommended decision is to harden further, use https://kernsec.org/wiki/index.php/Kernel_Self_Protection_Project/Recommended_Settings#sysctls[this as a guide]; but be sure to not use `kernel.modules_disabled`, `kernel.warn_limit`, and `kernel.oops_limit`!
+
+* Additional hardening via AppArmor: +
+`# apt install -t bookworm-backports golang-go`
+- If those two packages don't exist, run: + 
+`# echo 'deb http://deb.debian.org/debian bookworm-backports main contrib non-free' >> /etc/apt/sources.list`
+- Follow https://apparmor.pujol.io/install/[AppArmor.d's official instructions] on installing additional AppArmor profiles.
+** If there is a broken AppArmor profile, remove it, such as `# rm /etc/apparmor.d/home.tor-browser.firefox`.
+
+* `# aa-enforce -d /etc/apparmor.d/ qbittorrent qbittorrent-nox php-fpm`
 
 * `# systemctl reboot`
 
