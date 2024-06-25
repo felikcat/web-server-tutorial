@@ -42,16 +42,25 @@ Alternatively, there's https://my.hostingby.design/aff.php?aff=1433[hostingby.de
 . Edit `/etc/fstab` and add "noatime" to the XFS partition: +
 image:fstab.png[]
 
-. Install Swizzin, which are high-quality automation scripts to make administrating a seedbox easier: +
-- `# export libtorrent_github_tag=RC_1_2`
 
-- `# bash <(wget -qO - s5n.sh) && . ~/.bashrc` +
+NOTE: You can skip Swizzin installation if you already have it, for example, through hostingby.design's Swizzin OS template. +
+hostingby.design and Andy10gbit would in that case already have qBittorrent using libtorrent v1.2.x installed.
+
+.Install Swizzin, which are high-quality automation scripts to make administrating a seedbox easier; through which we install qBittorrent and optionally Plex
+[%collapsible]
+====
+
+. `# export libtorrent_github_tag=RC_1_2`
+
+. `# bash <(wget -qO - s5n.sh) && . ~/.bashrc` +
 Through Swizzin, install the following:
 ** panel
 ** nginx
 ** qbittorrent -> 4.6.5
 ** plex (only if you're streaming movies / TV shows)
 - See https://swizzin.ltd/getting-started/box-basics[here] for how to interact with Swizzin after its installation.
+
+====
 
 . Use https://github.com/zabbly/linux?tab=readme-ov-file#installation[zabbly's official instructions] on installing a mainline Linux kernel, this is done for its performance benefits.
 
@@ -134,20 +143,12 @@ vm.min_free_kbytes = 524288
 vm.zone_reclaim_mode = 1
 ```
 
-* If you plan on using a VPN / Wireguard, do this now, as it will break DNS resolving until reboot: + 
-`# apt install systemd-resolved`
-
 * `# systemctl reboot`
 
 == 2. Setting up qBittorrent
 . Open the qBittorrent UI, likely https://YOUR_IP/qbittorrent, or open it from the Swizzin panel.
 
 . Click the Gear icon to go into the settings.
-
-. *Web UI*
-- Check "Use HTTPS instead of HTTP", put for Certificate: "/config/server.crt", and for Key: "/config/server.key".
-- Scroll down, click Save, and ensure HTTPS is used for this next step:
-** Set your Username and Password under Authentication. Make sure it's different from the rest of your server.
 
 . *Downloads*
 - Default save path: `/home/YOUR_SWIZZIN_USER/torrents/qbittorrent`
@@ -251,6 +252,12 @@ vm.zone_reclaim_mode = 1
 
 This is to avoid complaints to Hetzner that would get your server shut down, which will always happen on public trackers, but are rare on private trackers.
 
+WARNING: This will slow down 10gbit servers to around 1.2gbit.
+
+.Instructions
+[%collapsible]
+====
+
 Here we're going to use https://airvpn.org/?referred_by=224244[AirVPN] (referral link, thank you if you use it); their servers are reliable, fast, and support port forwarding which is a requirement. I've personally used them since 2016, and struggled to find better VPNs, especially when needing port forwarding.
 
 . Open AirVPN's website, go to "Client Area", then "VPN Devices -> Manage". Here you assign a new device with whatever name you want; personally I'd name it "Hetzner".
@@ -295,6 +302,7 @@ Here we're going to use https://airvpn.org/?referred_by=224244[AirVPN] (referral
 . Now for Plex, go to the URL -- likely https://example.airdns.org:54321 (this must have its local port set to 32400), then click the wrench icon, go to Settings -> Remote Access, and make sure it looks similar to the following: +
 image:plex port.png[]
 
+====
 
 == Private trackers
 .Myanonamouse
