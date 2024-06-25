@@ -1,0 +1,338 @@
+:experimental:
+:imagesdir: images
+ifdef::env-github[]
+:icons:
+:tip-caption: :bulb:
+:note-caption: :information_source:
+:important-caption: :heavy_exclamation_mark:
+:caution-caption: :fire:
+:warning-caption: :warning:
+endif::[]
+
+== About
+This is a minimalist Debian 12 seedbox setup that is oriented around fast and stable seeding, for both private and public trackers. It also covers optionally setting up qBittorent and Plex through a VPN.
+
+It is bare-metal, not using any Dockers, so networking performance for 10gbit servers doesn't suffer.
+
+.Buying a server
+[%collapsible]
+====
+Hetzner's https://www.hetzner.com/sb/#cpuType=Intel&additional=iNIC&location=FSN[Auction House dedicated servers] are preferred as it provides the best value; you get powerful hardware, a truly unlimited 1gbps line that is shared with nobody else, and good peering/routing.
+
+For Hetzner, be sure to select an Intel CPU as it has an iGPU, which is useful for Plex, Emby, or Jellyfin; avoid Xeons, they have worse IPC which will impact libtorrent's performance -- the most critical part of qBittorrent, as it's effectively an interface for libttorrent. +
+AMD CPUs are better value if you never use streaming services (Plex, Emby, or Jellyfin). +
+Select the FSN or NBG location for better peering, and use an Intel iNIC as it uses less CPU than alternative network cards, and can handle a high number of global connections via libtorrent.
+
+Alternatively, there's https://my.hostingby.design/aff.php?aff=1433[hostingby.design] (referral link, thank you if you use it) which is cheaper than Hetzner and still has good performance, albeit is shared instead of dedicated, and with an upload cap of 25TB for their €19.95 plan that has 8TB of storage. 
+
+====
+
+
+== 1. Prerequisites
+. On Hetzner, format and install Debian 12 as RAID0 if applicable, as to not waste any storage and increase drive speeds. Also ensure `/home` and `/` are not separate partitions, meaning only `/` is used, and make `/` a XFS partition instead of ext4.
+- It's preferred to backup externally, instead of relying on RAID1.
+** https://serverpartdeals.com/collections/manufacturer-recertified-hdd[Serverpartdeals] is the best company in the US selling manufacturer recertified drives. Their packaging is paranoid, shipping times are fast, and the warranty is good -- although they won't cover the shipping label's cost.
+** Backing up this way will save a lot of money compared to paying Hetzner for backups, but will rely on you having fast download and upload speeds at home to do comfortably.
+
+. Login as the `root` user after Debian's installation is complete, or use `sudo -i` to escalate to root privileges.
+
+. Balance interrupts across CPU cores to handle high load more efficiently, which can prevent low networking performance: +
+`# apt install irqbalance`
+
+. Edit `/etc/fstab` and add "noatime" to the XFS partition: +
+image:fstab.png[]
+
+. Install Swizzin, which are high-quality automation scripts to make administrating a seedbox easier: +
+- `# export libtorrent_github_tag=RC_1_2`
+
+- `# bash <(wget -qO - s5n.sh) && . ~/.bashrc` +
+Through Swizzin, install the following:
+** panel
+** nginx
+** qbittorrent -> 4.6.5
+** plex (only if you're streaming movies / TV shows)
+- See https://swizzin.ltd/getting-started/box-basics[here] for how to interact with Swizzin after its installation.
+
+. Use https://github.com/zabbly/linux?tab=readme-ov-file#installation[zabbly's official instructions] on installing a mainline Linux kernel, this is done for its performance benefits.
+
+. Edit `/etc/default/grub`
+- Remove `nomodeset` to allow the Intel iGPU to run, which is desirable for Plex, Emby, or Jellyfin.
+** Also run: `# sed -i 's/^blacklist i915/#&/' /etc/modprobe.d/blacklist-hetzner.conf`
+
+- Add `transparent_hugepage=never numa_balancing=disable` to `GRUB_CMDLINE_LINUX_DEFAULT`, this aids in maintaining low networking latency.
+
+. `# grub-mkconfig -o /boot/grub/grub.cfg`
+
+. Edit `/etc/sysctl.d/99-custom.conf`; note that these settings are a bit wasteful on 1gbps servers, but there shouldn't be a perceivable negative impact from it.
+
+```
+# Don't save core dumps anywhere for better security, and less disk usage.
+kernel.core_pattern = /dev/null
+
+# Block processes with setuid from ignoring 'kernel.core_pattern'
+fs.suid_dumpable = 0
+
+# The fq (fair queueing) qdisc is recommended for BBR, instead of the default fq_codel
+net.core.default_qdisc = fq
+
+# Keep network throughput consistently high even with packet loss, at the cost of a little maximum upload burst
+net.ipv4.tcp_congestion_control = bbr
+
+# Use TCP Fast Open for both incoming and outgoing connections to reduce latency
+net.ipv4.tcp_fastopen = 3
+
+# Ensure MTU is valid to prevent stuck connection(s); very useful on misconfigured networks:
+# https://blog.cloudflare.com/path-mtu-discovery-in-practice/
+net.ipv4.tcp_mtu_probing = 1
+
+# Allow TCP with buffers up to 16MB
+net.core.rmem_default = 16777216
+net.core.rmem_max = 16777216
+net.core.wmem_default = 16777216
+net.core.wmem_max = 16777216
+net.core.optmem_max = 16777216
+
+# Increase Linux autotuning TCP buffer limit to 64MB
+net.ipv4.tcp_rmem = 4096 524288 67108864
+net.ipv4.tcp_wmem = 4096 524288 67108864
+
+# Don't swap to disk while the memory is not overloaded
+vm.swappiness = 1
+
+# Reduce TCP performance spikes by disabling timestamps
+net.ipv4.tcp_timestamps = 0
+
+# Done so TCP doesn't run out of memory
+net.ipv4.tcp_mem = 3145728 4194304 6291456
+
+# Protect against TCP TIME-WAIT assassination, which increases socket re-use
+net.ipv4.tcp_rfc1337 = 1
+
+# Allow 3/4 of available free memory in the receive buffer
+net.ipv4.tcp_adv_win_scale = 2
+
+# Allow ping to be ran under a normal user, fixing "Operation not permitted".
+net.ipv4.ping_group_range = 0 1000
+
+kernel.sched_autogroup_enabled = 0
+
+net.core.netdev_budget = 209715
+net.core.netdev_max_backlog = 3145728
+net.core.somaxconn = 50000
+
+net.ipv4.ip_local_port_range = 1024 65535
+net.ipv4.tcp_max_syn_backlog = 8192
+net.ipv4.tcp_orphan_retries = 2
+net.ipv4.tcp_retries2 = 8
+net.ipv4.tcp_slow_start_after_idle = 0
+net.ipv4.tcp_syn_retries = 2
+net.ipv4.tcp_synack_retries = 2
+net.ipv4.tcp_tw_reuse = 1
+net.ipv4.tcp_workaround_signed_windows = 1
+
+vm.min_free_kbytes = 524288
+vm.zone_reclaim_mode = 1
+```
+
+* If you plan on using a VPN / Wireguard, do this now, as it will break DNS resolving until reboot: + 
+`# apt install systemd-resolved`
+
+* `# systemctl reboot`
+
+== 2. Setting up qBittorrent
+. Open the qBittorrent UI, likely https://YOUR_IP/qbittorrent, or open it from the Swizzin panel.
+
+. Click the Gear icon to go into the settings.
+
+. *Web UI*
+- Check "Use HTTPS instead of HTTP", put for Certificate: "/config/server.crt", and for Key: "/config/server.key".
+- Scroll down, click Save, and ensure HTTPS is used for this next step:
+** Set your Username and Password under Authentication. Make sure it's different from the rest of your server.
+
+. *Downloads*
+- Default save path: `/home/YOUR_SWIZZIN_USER/torrents/qbittorrent`
+** Use `/home/YOUR_SWIZZIN_USER/storage/torrents/qbittorrent` if on a hostingby.design server with both SSDs and HDDs.
+- Default Torrent Management Mode: Automatic
+** This is so you can download torrents based on category and have them be separated into their own sub-folder. For example: the category "mam" -> `/home/YOUR_SWIZZIN_USER/torrents/qbittorrent/mam`.
+
+. *Connection*
+- Peer connection protocol: TCP
+- Use UPnP / NAT-PMP port forwarding from my router: ON
+- Uncheck all under Connections Limits!
+
+. *BitTorrent*
+- Encryption mode: Allow encryption
+- If using private trackers, uncheck all under Privacy, and NEVER enable anonymous mode.
+- Uncheck all under Torrent Queueing and Seeding Limits!
+
+. *Advanced*
+
+.For 1gbit servers such as Hetzner
+[%collapsible]
+====
+
+- File pool size: 5000
+- Outstanding memory when checking torrents: 1024
+** 512 if not using Hetzner / limited RAM such as 16GB.
+- Disk cache: -1
+** 1024 to play it safe, or 0 if you experience memory leaks / 90-100% RAM usage.
+- Disk cache expiry: 60
+- Disk IO type: Default
+- Disk IO read mode: Enable OS Cache
+- Disk IO write mode: Enable OS Cache
+- Coalesce reads and writes: OFF
+- Use piece extent affinity: ON
+- Send upload piece suggestions: ON
+- Send buffer watermark: 5120
+- Send buffer low watermark: 512
+- Send buffer watermark factor: Between 200-250, adjust as needed
+- Outgoing connections per second: 50 (increase to 75 if racing on REDacted)
+- Socket backlog size: 1000
+- Type of service (ToS) for connections to peers: 128
+- μTP-TCP mixed mode algorithm: Prefer TCP
+- Support IDN: ON
+- Allow multiple connections from the same IP address: ON
+- Validate HTTPS tracker certificate: OFF
+- Server-side request forgery (SSRF) mitigation: ON
+- Upload slots behaviour: Fixed Slots
+- Upload choking algorithm: Fastest Upload
+- Always announce to all trackers in a tier: OFF
+- Always announce to all tiers: ON
+- Max concurrent HTTP announces: 50
+** Only use 75 if experiencing announce issues with a very high amount of torrents loaded.
+- Peer turnover disconnect percentage: 0
+- Peer turnover threshold percentage: 90
+- Peer turnover disconnect interval: 30
+- Max outstanding requests to a single peer: 500
+
+====
+
+.For 10gbit servers
+[%collapsible]
+====
+
+- File pool size: 250000
+- Outstanding memory when checking torrents: 1024
+** 512 on limited RAM such as 16GB.
+- Disk cache: -1
+** 1024 to play it safe, or 0 if you experience memory leaks / 90-100% RAM usage.
+- Disk cache expiry: 60
+- Disk IO type: Default
+- Disk IO read mode: Enable OS Cache
+- Disk IO write mode: Enable OS Cache
+- Coalesce reads and writes: OFF
+- Use piece extent affinity: ON
+- Send upload piece suggestions: ON
+- Send buffer watermark: 20480
+- Send buffer low watermark: 2048
+- Send buffer watermark factor: 250
+- Outgoing connections per second: 50 (increase to 75 if racing on REDacted)
+- Socket backlog size: 1500
+- Type of service (ToS) for connections to peers: 128
+- μTP-TCP mixed mode algorithm: Prefer TCP
+- Support IDN: ON
+- Allow multiple connections from the same IP address: ON
+- Validate HTTPS tracker certificate: OFF
+- Server-side request forgery (SSRF) mitigation: ON
+- Upload slots behaviour: Fixed Slots
+- Upload choking algorithm: Fastest Upload
+- Always announce to all trackers in a tier: OFF
+- Always announce to all tiers: ON
+- Max concurrent HTTP announces: 50
+** Only use 75 if experiencing announce issues with a very high amount of torrents loaded.
+- Peer turnover disconnect percentage: 0
+- Peer turnover threshold percentage: 90
+- Peer turnover disconnect interval: 30
+- Max outstanding requests to a single peer: 500
+
+====
+
+== 3. (Optional) Setting up a VPN for qBittorrent and Plex
+
+This is to avoid complaints to Hetzner that would get your server shut down, which will always happen on public trackers, but are rare on private trackers.
+
+Here we're going to use https://airvpn.org/?referred_by=224244[AirVPN] (referral link, thank you if you use it); their servers are reliable, fast, and support port forwarding which is a requirement. I've personally used them since 2016, and struggled to find better VPNs, especially when needing port forwarding.
+
+. Open AirVPN's website, go to "Client Area", then "VPN Devices -> Manage". Here you assign a new device with whatever name you want; personally I'd name it "Hetzner".
+
+. Go back into "Client Area", then go to "Config Generator".
+- Choose "Linux" as the OS, click the slider for "Wireguard UDP 1637", then select your device. Now pick a server that has a 20000mbit/s (10gbps up and down) link; for Germany, their Netherlands servers are most suitable, while for Finland it would be Sweden.
+- At the bottom of the page, click "Generate".
+
+. Rename the generated VPN file to "wg0" ("wg0.conf" if you enabled file extensions in your OS).
+
+. Open "wg0.conf" 
+- Change the `MTU` to 1420.
+- Remove the line containing `PersistentKeepalive`.
+
+. `# apt install wireguard resolvconf`
+
+. Edit `/opt/swizzin/swizzin.cfg` and add `FORMS_LOGIN = False`
+- This is required to login to the Swizzin panel when using alternative ports.
+
+. Move "wg0.conf" to `/etc/wireguard`; use an SFTP program such as https://filezilla-project.org/[FileZilla] if you need to.
+
+. Edit `/etc/nginx/sites-enabled/default`
+- Change the listen port from 443 to a port you have forwarded in AirVPN, note that the port and local port cannot differ on AirVPN's website. 
+
+. Using your Swizzin user (not root), edit `~/.config/qBittorrent/qBittorrent.conf`:
+- Change `WebUI\LocalHostAuth` to *false*.
+** It's safe to bypass the localhost login requirement since Nginx protects this page already with a login.
+
+. Edit `/etc/ssh/sshd_config`, and change the Port to one you've port forwarded with AirVPN, note that again, the port and local port cannot differ on AirVPN's website.
+
+. As root: `# systemctl restart ssh nginx panel qbittorrent@YOUR_SWIZZIN_USER`
+
+. `# wg-quick up wg0`
+
+. Open the qBittorrent UI, likely https://example.airdns.org:12345
+
+. Click the Gear icon to go into the settings.
+
+. *Advanced*
+- Network interface: wg0
+
+. Now for Plex, go to the URL -- likely https://example.airdns.org:54321 (this must have its local port set to 32400), then click the wrench icon, go to Settings -> Remote Access, and make sure it looks similar to the following: +
+image:plex port.png[]
+
+
+== Private trackers
+.Myanonamouse
+
+Setting a dynamic seedbox IP: + 
+image:MAM cookie.png[]
+
+== File transfers / backups
+There are two good options, depending on what you're comfortable with.
+
+=== Graphical
+
+. Syncthing
+- This is generally what you should use for syncing across drives or servers, the downside is the long wait time for a first folder scan.
+** `# box install syncthing` on the server(s).
+
+. https://filezilla-project.org/[FileZilla]
+- This is the fastest SFTP client for downloads; given the following option is set to 10: +
+image:simultaneous transfers.png[]
+
+== Command-line
+
+. rsync
+- On the server (example is of moving a file to IP 31.3.3.7 on SSH port 6969): + 
+`# rsync --progress -atvz /home/EXAMPLE_USER/torrents/qbittorrent/* -e 'ssh -p 6969' media@31.3.3.7:/home/EXAMPLE_USER/torrents/qbittorrent`
+
+== Appendices
+
+.Learning resources used
+[%collapsible]
+====
+
+. hostingby.design's server templates.
+. ofnir & imabee's advice on qBittorrent settings.
+. https://www.emqx.com/en/blog/emqx-performance-tuning-tcp-syn-queue-and-accept-queue
+. https://blog.cloudflare.com/optimizing-tcp-for-high-throughput-and-low-latency
+. https://fasterdata.es.net/host-tuning/linux/
+. https://learn.microsoft.com/en-us/azure/virtual-network/virtual-network-tcpip-performance-tuning
+. https://docs.redhat.com/en/documentation/red_hat_enterprise_linux/9/html/monitoring_and_managing_system_status_and_performance/tuning-the-network-performance_monitoring-and-managing-system-status-and-performance
+
+====
