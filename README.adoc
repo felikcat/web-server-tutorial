@@ -23,6 +23,8 @@ For Hetzner, be sure to select an Intel CPU as it has an iGPU, which is useful f
 AMD CPUs are better value if you never use streaming services (Plex, Emby, or Jellyfin). +
 Select the FSN or NBG location for better peering, and use an Intel iNIC as it uses less CPU than alternative network cards, and can handle a high number of global connections via libtorrent.
 
+If you're paranoid about DDoS attacks, get an OVH unmetered from https://www.ovhcloud.com/en/bare-metal/prices/?display=list&storage=SATA&storage_volume=2000%7C22000[their website], and also check what https://discord.gg/7Gv8tdM[Andy10gbit on Discord] has to offer for OVH servers. Do note that OVH is significantly more expensive than Hetzner.
+
 ====
 
 
@@ -34,8 +36,30 @@ Select the FSN or NBG location for better peering, and use an Intel iNIC as it u
 
 . Login as the `root` user after Debian's installation is complete, or use `sudo -i` to escalate to root privileges.
 
-. Balance interrupts across CPU cores to handle high load more efficiently, which can prevent low networking performance. AppArmor is to stop software from doing what they shouldn't, hence better security. Unattended upgrades is so you don't accidentally forget to update packages, which would cause security issues. UFW is a firewall management tool: +
-`# apt update && apt install irqbalance apparmor apparmor-utils unattended-upgrades apt-listchanges ufw`
+. *irqbalance* balances interrupts across CPU cores to handle high load more efficiently, which can prevent low networking performance. +
+*AppArmor* is to stop software from doing what they shouldn't, hence better security. +
+*Unattended upgrades* is so you don't accidentally forget to update packages, which would cause security issues. +
+*UFW* is a firewall management tool for blocking off unused ports. +
+*Fail2ban* is to make bruteforce password attacks on your SSH much more difficult: +
+`# apt update && apt install irqbalance apparmor apparmor-utils unattended-upgrades apt-listchanges ufw fail2ban python3-systemd`
+
+- Required to make fail2ban work: +
+`# echo "sshd_backend = systemd" >> /etc/fail2ban/paths-debian.conf; systemctl restart fail2ban`
+
+** Edit `/etc/fail2ban/fail2ban.local` +
+`[DEFAULT] +
+allowipv6 = auto +
+logtarget = SYSTEMD-JOURNAL`
+
+** Edit `/etc/fail2ban/jail.local` +
+`[sshd] +
+backend = systemd +
+enabled = true +
+port = ssh +
+bantime = 1h +
+maxretry = 5 +
+ignoreip = 127.0.0.1/8`
+** `# systemctl restart fail2ban`
 
 - `# echo -e 'APT::Periodic::Update-Package-Lists "1";\nAPT::Periodic::Unattended-Upgrade "1";' > /etc/apt/apt.conf.d/20auto-upgrades`
 
@@ -52,6 +76,8 @@ If you are going to use a VPN, make it a port you have forwarded on their websit
 - `# ufw allow https`
 - `# ufw default deny incoming; ufw enable`
 ** You will get kicked out, this is okay, re-login with the new SSH port.
+
+. 
 
 
 NOTE: You can skip Swizzin installation if you already have it, for example, through hostingby.design's Swizzin OS template. +
