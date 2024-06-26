@@ -39,7 +39,8 @@ On Hetzner, format and install Debian 12 as RAID0 if applicable, as to not waste
 
 Login as the `root` user after Debian's installation is complete, or use `sudo -i` to escalate to root privileges.
 
-*irqbalance* balances interrupts across CPU cores to handle high load more efficiently, which can prevent low networking performance. +
+
+TIP: *irqbalance* balances interrupts across CPU cores to handle high load more efficiently, which can prevent low networking performance. +
 *AppArmor* is to stop software from doing what they shouldn't, hence better security. +
 *Unattended upgrades* is so you don't accidentally forget to update packages, which would cause security issues. +
 *UFW* is a firewall management tool for blocking off unused ports. +
