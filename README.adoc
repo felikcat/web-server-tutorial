@@ -84,8 +84,8 @@ If you are going to use a VPN, make it a port you have forwarded on their websit
 - Include `-i /DIRECTORY/TO/YOUR_FILE` if you put a custom location and/or name: +
 `$ ssh-copyid -p YOUR_SSH_PORT root@YOUR_SERVER_IP`
 - Check on the server to see if your key was installed successfully: +
-`# cat /root/.ssh/authorized_key`
-** Login with only the SSH key, and if it works, disable SSH password logins by editing: `/etc/ssh/sshd_config` +
+`# cat /root/.ssh/authorized_keys`
+** Login with only the SSH key, and if it works, disable SSH password logins by editing `/etc/ssh/sshd_config`: +
 `PasswordAuthentication no`
 ** `# systemctl restart ssh`
 
