@@ -34,16 +34,24 @@ Select the FSN or NBG location for better peering, and use an Intel iNIC as it u
 
 . Login as the `root` user after Debian's installation is complete, or use `sudo -i` to escalate to root privileges.
 
-. Balance interrupts across CPU cores to handle high load more efficiently, which can prevent low networking performance. AppArmor is to stop software from doing what they shouldn't, hence better security. Unattended upgrades is so you don't accidentally forget to update packages, which would cause security issues: +
-`# apt install irqbalance apparmor apparmor-utils unattended-upgrades apt-listchanges`
+. Balance interrupts across CPU cores to handle high load more efficiently, which can prevent low networking performance. AppArmor is to stop software from doing what they shouldn't, hence better security. Unattended upgrades is so you don't accidentally forget to update packages, which would cause security issues. UFW is a firewall management tool: +
+`# apt update && apt install irqbalance apparmor apparmor-utils unattended-upgrades apt-listchanges ufw`
 
-- `# echo 'APT::Periodic::Update-Package-Lists "1";
-APT::Periodic::Unattended-Upgrade "1";' > /etc/apt/apt.conf.d/20auto-upgrades`
+- `# echo -e 'APT::Periodic::Update-Package-Lists "1";\nAPT::Periodic::Unattended-Upgrade "1";' > /etc/apt/apt.conf.d/20auto-upgrades`
 
 - `# systemctl enable --now apt-daily.timer apt-daily-upgrade.timer`
 
 . Edit `/etc/fstab` and add "noatime" to the XFS partition: +
 image:fstab.png[]
+
+. Change the default SSH port to something other than 22, by editing: +
+`/etc/ssh/sshd_config` +
+If you are going to use a VPN, make it a port you have forwarded on their website.
+- `# systemctl restart ssh`
+- `# ufw allow YOUR_SSH_PORT`
+- `# ufw allow https`
+- `# ufw default deny incoming; ufw enable`
+** You will get kicked out, this is okay, re-login with the new SSH port.
 
 
 NOTE: You can skip Swizzin installation if you already have it, for example, through hostingby.design's Swizzin OS template. +
@@ -163,7 +171,9 @@ Remove /storage/ if not applicable.
 * `# systemctl reboot`
 
 == 2. Setting up qBittorrent
-. Open the qBittorrent UI, likely https://YOUR_IP/qbittorrent, or open it from the Swizzin panel.
+. `# ufw allow https`
+
+. Open the Swizzin panel, which should be on the root of your IP such as https://EXAMPLE_IP.
 
 . Click the Gear icon to go into the settings.
 
@@ -177,6 +187,7 @@ Remove /storage/ if not applicable.
 - Peer connection protocol: TCP
 - Use UPnP / NAT-PMP port forwarding from my router: ON
 - Uncheck all under Connections Limits!
+- `# ufw allow PORT_FOR_INCOMING_CONNECTIONS`
 
 . *BitTorrent*
 - Encryption mode: Allow encryption
@@ -277,6 +288,9 @@ WARNING: This will slow down 10gbit servers to around 1.2gbit.
 
 Here we're going to use https://airvpn.org/?referred_by=224244[AirVPN] (referral link, thank you if you use it); their servers are reliable, fast, and support port forwarding which is a requirement. I've personally used them since 2016, and struggled to find better VPNs, especially when needing port forwarding.
 
+. `# ufw route allow in on wg0`
+- `# ufw allow 1637/udp`
+
 . Open AirVPN's website, go to "Client Area", then "VPN Devices -> Manage". Here you assign a new device with whatever name you want; personally I'd name it "Hetzner".
 
 . Go back into "Client Area", then go to "Config Generator".
@@ -321,6 +335,10 @@ image:plex port.png[]
 
 ====
 
+== Tips
+. Check your successful server logins occassionally with: +
+`# last -w -F`
+
 == Private trackers
 .Myanonamouse
 
@@ -344,7 +362,7 @@ image:simultaneous transfers.png[]
 
 . rsync
 - On the server (example is of moving a file to IP 31.3.3.7 on SSH port 6969): + 
-`# rsync --progress -atvz /home/EXAMPLE_USER/torrents/qbittorrent/* -e 'ssh -p 6969' media@31.3.3.7:/home/EXAMPLE_USER/torrents/qbittorrent`
+`# rsync --progress -atvz /home/EXAMPLE_USER/torrents/qbittorrent/* -e 'ssh -p 6969' EXAMPLE_USER@31.3.3.7:/home/EXAMPLE_USER/torrents/qbittorrent`
 
 == Appendices
 
