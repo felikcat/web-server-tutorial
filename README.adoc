@@ -43,8 +43,8 @@ If you're paranoid about DDoS attacks, get an OVH unmetered from https://www.ovh
 *Fail2ban* is to make bruteforce password attacks on your SSH much more difficult: +
 `# apt update && apt install irqbalance apparmor apparmor-utils unattended-upgrades apt-listchanges ufw fail2ban python3-systemd`
 
-- Required to make fail2ban work: +
-`# echo "sshd_backend = systemd" >> /etc/fail2ban/paths-debian.conf; systemctl restart fail2ban`
+- The following steps are required to make fail2ban work: +
+`# echo "sshd_backend = systemd" >> /etc/fail2ban/paths-debian.conf`
 
 ** Edit `/etc/fail2ban/fail2ban.local` +
 `[DEFAULT] +
@@ -59,6 +59,7 @@ port = ssh +
 bantime = 1h +
 maxretry = 5 +
 ignoreip = 127.0.0.1/8`
+
 ** `# systemctl restart fail2ban`
 
 - `# echo -e 'APT::Periodic::Update-Package-Lists "1";\nAPT::Periodic::Unattended-Upgrade "1";' > /etc/apt/apt.conf.d/20auto-upgrades`
