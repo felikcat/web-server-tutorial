@@ -14,6 +14,8 @@ This is a minimalist Debian 12 seedbox setup that is oriented around fast and st
 
 It is bare-metal, not using any Dockers, so networking performance for 10gbit servers doesn't suffer.
 
+This guide has a lot of security measures / hardening done, so have patience when working through this guide.
+
 .Buying a server
 [%collapsible]
 ====
@@ -39,12 +41,12 @@ On Hetzner, format and install Debian 12 as RAID0 if applicable, as to not waste
 
 Login as the `root` user after Debian's installation is complete, or use `sudo -i` to escalate to root privileges.
 
-
 TIP: *irqbalance* balances interrupts across CPU cores to handle high load more efficiently, which can prevent low networking performance. +
 *AppArmor* is to stop software from doing what they shouldn't, hence better security. +
 *Unattended upgrades* is so you don't accidentally forget to update packages, which would cause security issues. +
 *UFW* is a firewall management tool for blocking off unused ports. +
-*Fail2ban* is to make bruteforce password attacks on SSH and your web server (nginx) much more difficult: +
+*Fail2ban* is to make bruteforce password attacks on SSH and your web server (nginx) much more difficult.
+
 `# apt update && apt install irqbalance apparmor apparmor-utils unattended-upgrades apt-listchanges ufw fail2ban python3-systemd`
 
 The following steps are required to make fail2ban work: +
@@ -105,31 +107,6 @@ Run `$ ssh-keygen` on your local computer/PC, use the default location unless yo
 ** Login with only the SSH key, and if it works, disable SSH password logins by editing `/etc/ssh/sshd_config`: +
 `PasswordAuthentication no`
 ** `# systemctl restart ssh`
-
-
-NOTE: You can skip Swizzin installation if you already have it, for example, through hostingby.design's Swizzin OS template. +
-hostingby.design and Andy10gbit would in that case already have qBittorrent using libtorrent v1.2.x installed.
-
-.Install Swizzin, which are high-quality automation scripts to make administrating a seedbox easier; through which we install qBittorrent and optionally Plex
-[%collapsible]
-====
-
-Use libtorrent v1.2.x instead of v2, as v2 has issues with disk performance / caching. +
-`# export libtorrent_github_tag=RC_1_2`
-
-Retreive then run Swizzin: +
-`# bash <(wget -qO - s5n.sh) && . ~/.bashrc`
-
-.Through Swizzin, install the following:
-* panel
-* nginx
-* qbittorrent -> 4.6.5
-* plex (only if you're streaming movies / TV shows)
-- See https://swizzin.ltd/getting-started/box-basics[here] for how to interact with Swizzin after its installation.
-
-''''
-
-====
 
 Use https://github.com/zabbly/linux?tab=readme-ov-file#installation[zabbly's official instructions] on installing a mainline Linux kernel, this is done for its performance and security benefits.
 
@@ -214,15 +191,42 @@ vm.min_free_kbytes = 524288
 vm.zone_reclaim_mode = 1
 ```
 
-After a little break, it's time to harden further, use https://kernsec.org/wiki/index.php/Kernel_Self_Protection_Project/Recommended_Settings#sysctls[this as a guide]; but be sure to not use `kernel.modules_disabled`, `kernel.warn_limit`, and `kernel.oops_limit`!
+NOTE: You can skip Swizzin installation if you already have it, for example, through hostingby.design's Swizzin OS template. +
+hostingby.design and Andy10gbit would in that case already have qBittorrent using libtorrent v1.2.x installed.
+
+.Install Swizzin, which are high-quality automation scripts to make administrating a seedbox easier; through which we *install qBittorrent and optionally Plex*
+[%collapsible]
+====
+
+Use libtorrent v1.2.x instead of v2, as v2 has issues with disk performance / caching. +
+`# export libtorrent_github_tag=RC_1_2`
+
+Retreive then run Swizzin: +
+`# bash <(wget -qO - s5n.sh) && . ~/.bashrc`
+
+.Through Swizzin, install the following:
+* panel
+* nginx
+* qbittorrent -> 4.3.9 or 4.6.5 depending on your preferences
+* plex (only if you're streaming movies / TV shows)
+
+See https://swizzin.ltd/getting-started/box-basics[here] for how to interact with Swizzin after its installation.
+
+''''
+
+====
+
+After a little break, it's time to harden our sysctl settings further, use https://kernsec.org/wiki/index.php/Kernel_Self_Protection_Project/Recommended_Settings#sysctls[this as a guide]; but be sure to not use `kernel.modules_disabled`, `kernel.warn_limit`, and `kernel.oops_limit`!
 
 Additional hardening via AppArmor: +
 `# apt install -t bookworm-backports golang-go`
 
-- If those two packages don't exist, run: + 
+* If those two packages don't exist, run: + 
 `# echo 'deb http://deb.debian.org/debian bookworm-backports main contrib non-free' >> /etc/apt/sources.list`
-- Follow https://apparmor.pujol.io/install/[AppArmor.d's official instructions] on installing additional AppArmor profiles.
-** If there is a broken AppArmor profile, remove it, such as +
+
+Follow https://apparmor.pujol.io/install/[AppArmor.d's official instructions] on installing additional AppArmor profiles.
+
+* If there is a broken AppArmor profile, remove it, such as +
 `# rm /etc/apparmor.d/home.tor-browser.firefox`.
 
 Edit `/etc/apparmor.d/qbittorrent-nox` and add the following line (that contains @{HOME}): +
