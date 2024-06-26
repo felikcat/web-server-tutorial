@@ -19,9 +19,11 @@ It is bare-metal, not using any Dockers, so networking performance for 10gbit se
 ====
 Hetzner's https://www.hetzner.com/sb/#cpuType=Intel&additional=iNIC&location=FSN[Auction House dedicated servers] are preferred as it provides the best value; you get powerful hardware, a truly unlimited 1gbps line that is shared with nobody else, and good peering/routing.
 
-For Hetzner, be sure to select an Intel CPU as it has an iGPU, which is useful for Plex, Emby, or Jellyfin; avoid Xeons, they have worse IPC which will impact libtorrent's performance -- the most critical part of qBittorrent, as it's effectively an interface for libttorrent. +
-AMD CPUs are better value if you never use streaming services (Plex, Emby, or Jellyfin). +
-Select the FSN or NBG location for better peering, and use an Intel iNIC as it uses less CPU than alternative network cards, and can handle a high number of global connections via libtorrent.
+For Hetzner, be sure to select an Intel CPU as it has an iGPU, which is useful for Plex, Emby, or Jellyfin; avoid Xeons, they have worse IPC which will impact libtorrent's performance -- the most critical part of qBittorrent, as it's effectively an interface for libttorrent.
+
+* AMD CPUs are better value if you never use streaming services (Plex, Emby, or Jellyfin).
+
+* Select the FSN or NBG location for better peering, and use an Intel iNIC as it uses less CPU than alternative network cards, and can handle a high number of global connections via libtorrent.
 
 If you're paranoid about DDoS attacks, get an OVH unmetered from https://www.ovhcloud.com/en/bare-metal/prices/?display=list&storage=SATA&storage_volume=2000%7C22000[their website], and also check what https://discord.gg/7Gv8tdM[Andy10gbit on Discord] has to offer for OVH servers. Do note that OVH is significantly more expensive than Hetzner.
 
@@ -29,58 +31,72 @@ If you're paranoid about DDoS attacks, get an OVH unmetered from https://www.ovh
 
 
 == 1. Prerequisites
-. On Hetzner, format and install Debian 12 as RAID0 if applicable, as to not waste any storage and increase drive speeds. Also ensure `/home` and `/` are not separate partitions, meaning only `/` is used, and make `/` a XFS partition instead of ext4.
-- It's preferred to backup externally, instead of relying on RAID1.
+On Hetzner, format and install Debian 12 as RAID0 if applicable, as to not waste any storage and increase drive speeds. Also ensure `/home` and `/` are not separate partitions, meaning only `/` is used, and make `/` a XFS partition instead of ext4.
+
+* It's preferred to backup externally, instead of relying on RAID1.
 ** https://serverpartdeals.com/collections/manufacturer-recertified-hdd[Serverpartdeals] is the best company in the US selling manufacturer recertified drives. Their packaging is paranoid, shipping times are fast, and the warranty is good -- although they won't cover the shipping label's cost.
 ** Backing up this way will save a lot of money compared to paying Hetzner for backups, but will rely on you having fast download and upload speeds at home to do comfortably.
 
-. Login as the `root` user after Debian's installation is complete, or use `sudo -i` to escalate to root privileges.
+Login as the `root` user after Debian's installation is complete, or use `sudo -i` to escalate to root privileges.
 
-. *irqbalance* balances interrupts across CPU cores to handle high load more efficiently, which can prevent low networking performance. +
+*irqbalance* balances interrupts across CPU cores to handle high load more efficiently, which can prevent low networking performance. +
 *AppArmor* is to stop software from doing what they shouldn't, hence better security. +
 *Unattended upgrades* is so you don't accidentally forget to update packages, which would cause security issues. +
 *UFW* is a firewall management tool for blocking off unused ports. +
 *Fail2ban* is to make bruteforce password attacks on SSH and your web server (nginx) much more difficult: +
 `# apt update && apt install irqbalance apparmor apparmor-utils unattended-upgrades apt-listchanges ufw fail2ban python3-systemd`
 
-- The following steps are required to make fail2ban work: +
+The following steps are required to make fail2ban work: +
 `# echo "sshd_backend = systemd" >> /etc/fail2ban/paths-debian.conf`
 
-** Edit `/etc/fail2ban/fail2ban.local` +
-`[DEFAULT] +
-allowipv6 = auto +
-logtarget = SYSTEMD-JOURNAL +
-banaction = ufw +
-banaction_allports = ufw`
+Edit `/etc/fail2ban/fail2ban.local`: +
+```
+[DEFAULT]
+allowipv6 = auto
+backend = systemd
+banaction = ufw
+banaction_allports = ufw
+bantime = 2h
+ignoreip = 127.0.0.1/8
+logtarget = SYSTEMD-JOURNAL
+maxretry = 5
+```
 
-** Edit `/etc/fail2ban/jail.local` +
-`[sshd] +
-backend = systemd +
-enabled = true +
-port = ssh +
-bantime = 1h +
-maxretry = 5 +
-ignoreip = 127.0.0.1/8`
+Edit `/etc/fail2ban/jail.local`: +
+```
+[sshd]
+enabled = true
+port = ssh
 
-** `# systemctl restart fail2ban`
+[nginx-http-auth]
+enabled = true
+port = http,https
+logpath = %(nginx_error_log)s
+```
 
-- `# echo -e 'APT::Periodic::Update-Package-Lists "1";\nAPT::Periodic::Unattended-Upgrade "1";' > /etc/apt/apt.conf.d/20auto-upgrades`
+`# systemctl restart fail2ban`
 
-- `# systemctl enable --now apt-daily.timer apt-daily-upgrade.timer`
+Enable automatic updates: +
+`# echo -e 'APT::Periodic::Update-Package-Lists "1";\nAPT::Periodic::Unattended-Upgrade "1";' > /etc/apt/apt.conf.d/20auto-upgrades`
 
-. Edit `/etc/fstab` and add "noatime" to the XFS partition: +
+`# systemctl enable --now apt-daily.timer apt-daily-upgrade.timer`
+
+Edit `/etc/fstab` and add "noatime" to the XFS partition: +
 image:fstab.png[]
 
-. Change the default SSH port to something other than 22, by editing: +
-`/etc/ssh/sshd_config` +
-If you are going to use a VPN, make it a port you have forwarded on their website.
+Change the default SSH port to something other than 22, by editing: +
+`/etc/ssh/sshd_config`
+
+TIP: If you are going to use a VPN, make it a port you have forwarded on their website.
+
 - `# systemctl restart ssh`
 - `# ufw allow YOUR_SSH_PORT`
 - `# ufw allow https`
 - `# ufw default deny incoming; ufw enable`
 ** You will get kicked out, this is okay, re-login with the new SSH port.
 
-. Run `$ ssh-keygen` on your local computer/PC, use the default location unless you already have an SSH key there (in that case, put it elsewhere and remember it), then set the passphrase to something moderately complex using a password manager like Bitwarden. I recommend at least 30 characters long, lower & upper case characters with numbers, and no symbols.
+Run `$ ssh-keygen` on your local computer/PC, use the default location unless you already have an SSH key there (in that case, put it elsewhere and remember it), then set the passphrase to something moderately complex using a password manager like Bitwarden. I recommend at least 30 characters long, lower & upper case characters with numbers, and no symbols.
+
 - Include `-i /DIRECTORY/TO/YOUR_FILE` if you put a custom location and/or name: +
 `$ ssh-copyid -p YOUR_SSH_PORT root@YOUR_SERVER_IP`
 - Check on the server to see if your key was installed successfully: +
@@ -97,29 +113,33 @@ hostingby.design and Andy10gbit would in that case already have qBittorrent usin
 [%collapsible]
 ====
 
-. `# export libtorrent_github_tag=RC_1_2`
+Use libtorrent v1.2.x instead of v2, as v2 has issues with disk performance / caching. +
+`# export libtorrent_github_tag=RC_1_2`
 
-. `# bash <(wget -qO - s5n.sh) && . ~/.bashrc` +
+Retreive then run Swizzin: +
+`# bash <(wget -qO - s5n.sh) && . ~/.bashrc`
+
 Through Swizzin, install the following:
-** panel
-** nginx
-** qbittorrent -> 4.6.5
-** plex (only if you're streaming movies / TV shows)
+* panel
+* nginx
+* qbittorrent -> 4.6.5
+* plex (only if you're streaming movies / TV shows)
 - See https://swizzin.ltd/getting-started/box-basics[here] for how to interact with Swizzin after its installation.
 
 ====
 
-. Use https://github.com/zabbly/linux?tab=readme-ov-file#installation[zabbly's official instructions] on installing a mainline Linux kernel, this is done for its performance and security benefits.
+Use https://github.com/zabbly/linux?tab=readme-ov-file#installation[zabbly's official instructions] on installing a mainline Linux kernel, this is done for its performance and security benefits.
 
-. Edit `/etc/default/grub`
-- Remove `nomodeset` to allow the Intel iGPU to run, which is desirable for Plex, Emby, or Jellyfin.
+Edit `/etc/default/grub`:
+
+* Remove `nomodeset` to allow the Intel iGPU to run, which is desirable for Plex, Emby, or Jellyfin.
 ** Also run: `# sed -i 's/^blacklist i915/#&/' /etc/modprobe.d/blacklist-hetzner.conf`
 
-- Add `transparent_hugepage=never numa_balancing=disable` to `GRUB_CMDLINE_LINUX_DEFAULT`, this aids in maintaining low networking latency.
+* Add `transparent_hugepage=never numa_balancing=disable` to `GRUB_CMDLINE_LINUX_DEFAULT`, this aids in maintaining low networking latency.
 
-. `# grub-mkconfig -o /boot/grub/grub.cfg`
+`# grub-mkconfig -o /boot/grub/grub.cfg`
 
-. Edit `/etc/sysctl.d/99-custom.conf`; note that these settings are a bit wasteful on 1gbps servers, but there shouldn't be a perceivable negative impact from it.
+Edit `/etc/sysctl.d/99-custom.conf`; note that these settings are a bit wasteful on 1gbps servers, but there shouldn't be a perceivable negative impact from it.
 
 ```
 # Don't save core dumps anywhere for better security, and less disk usage.
@@ -190,10 +210,11 @@ vm.min_free_kbytes = 524288
 vm.zone_reclaim_mode = 1
 ```
 
-* A recommended decision is to harden further, use https://kernsec.org/wiki/index.php/Kernel_Self_Protection_Project/Recommended_Settings#sysctls[this as a guide]; but be sure to not use `kernel.modules_disabled`, `kernel.warn_limit`, and `kernel.oops_limit`!
+After a little break, it's time to harden further, use https://kernsec.org/wiki/index.php/Kernel_Self_Protection_Project/Recommended_Settings#sysctls[this as a guide]; but be sure to not use `kernel.modules_disabled`, `kernel.warn_limit`, and `kernel.oops_limit`!
 
-* Additional hardening via AppArmor: +
+Additional hardening via AppArmor: +
 `# apt install -t bookworm-backports golang-go`
+
 - If those two packages don't exist, run: + 
 `# echo 'deb http://deb.debian.org/debian bookworm-backports main contrib non-free' >> /etc/apt/sources.list`
 - Follow https://apparmor.pujol.io/install/[AppArmor.d's official instructions] on installing additional AppArmor profiles.
@@ -207,35 +228,35 @@ Remove /storage/ if not applicable.
 * `# systemctl reboot`
 
 == 2. Setting up qBittorrent
-. `# ufw allow https`
+Allow port 443: +
+`# ufw allow https`
 
-. Open the Swizzin panel, which should be on the root of your IP such as https://EXAMPLE_IP.
+Open the Swizzin panel, which should be on the root of your IP such as https://EXAMPLE_IP.
 
-. Click the Gear icon to go into the settings.
+Click the Gear icon to go into the settings.
 
-. *Downloads*
+.*Downloads*
 - Default save path: `/home/YOUR_SWIZZIN_USER/torrents/qbittorrent`
 ** Use `/home/YOUR_SWIZZIN_USER/storage/torrents/qbittorrent` if on a hostingby.design server with both SSDs and HDDs.
 - Default Torrent Management Mode: Automatic
 ** This is so you can download torrents based on category and have them be separated into their own sub-folder. For example: the category "mam" -> `/home/YOUR_SWIZZIN_USER/torrents/qbittorrent/mam`.
 
-. *Connection*
+.*Connection*
 - Peer connection protocol: TCP
 - Use UPnP / NAT-PMP port forwarding from my router: ON
 - Uncheck all under Connections Limits!
 - `# ufw allow PORT_FOR_INCOMING_CONNECTIONS`
 
-. *BitTorrent*
+.*BitTorrent*
 - Encryption mode: Allow encryption
 - If using private trackers, uncheck all under Privacy, and NEVER enable anonymous mode.
 - Uncheck all under Torrent Queueing and Seeding Limits!
-
-. *Advanced*
 
 .For 1gbit servers such as Hetzner
 [%collapsible]
 ====
 
+.*Advanced*
 - File pool size: 5000
 - Outstanding memory when checking torrents: 1024
 ** 512 if not using Hetzner / limited RAM such as 16GB.
@@ -276,6 +297,7 @@ Remove /storage/ if not applicable.
 [%collapsible]
 ====
 
+.*Advanced*
 - File pool size: 250000
 - Outstanding memory when checking torrents: 1024
 ** 512 on limited RAM such as 16GB.
@@ -324,55 +346,62 @@ WARNING: This will slow down 10gbit servers to around 1.2gbit.
 
 Here we're going to use https://airvpn.org/?referred_by=224244[AirVPN] (referral link, thank you if you use it); their servers are reliable, fast, and support port forwarding which is a requirement. I've personally used them since 2016, and struggled to find better VPNs, especially when needing port forwarding.
 
-. `# ufw route allow in on wg0`
-- `# ufw allow 1637/udp`
+`# ufw route allow in on wg0; ufw allow 1637/udp`
 
-. Open AirVPN's website, go to "Client Area", then "VPN Devices -> Manage". Here you assign a new device with whatever name you want; personally I'd name it "Hetzner".
+Open AirVPN's website, go to "Client Area", then "VPN Devices -> Manage". Here you assign a new device with whatever name you want; personally I'd name it "Hetzner".
 
-. Go back into "Client Area", then go to "Config Generator".
-- Choose "Linux" as the OS, click the slider for "Wireguard UDP 1637", then select your device. Now pick a server that has a 20000mbit/s (10gbps up and down) link; for Germany, their Netherlands servers are most suitable, while for Finland it would be Sweden.
+Go back into "Client Area", then go to "Config Generator".
+
+* Choose "Linux" as the OS, click the slider for "Wireguard UDP 1637", then select your device. Now pick a server that has a 20000mbit/s (10gbps up and down) link; for Germany, their Netherlands servers are most suitable, while for Finland it would be Sweden.
 - At the bottom of the page, click "Generate".
 
-. Rename the generated VPN file to "wg0" ("wg0.conf" if you enabled file extensions in your OS).
+Rename the generated VPN file to "wg0" ("wg0.conf" if you enabled file extensions in your OS).
 
-. Open "wg0.conf" 
-- Change the `MTU` to 1420.
-- Remove the line containing `PersistentKeepalive`.
+Edit "wg0.conf":
 
-. `# apt install wireguard resolvconf`
+* Change the `MTU` to 1420.
+* Remove the line containing `PersistentKeepalive`.
 
-. Edit `/opt/swizzin/swizzin.cfg` and add `FORMS_LOGIN = False`
-- This is required to login to the Swizzin panel when using alternative ports.
+Install Wireguard on the server: +
+`# apt install wireguard resolvconf`
 
-. Move "wg0.conf" to `/etc/wireguard`; use an SFTP program such as https://filezilla-project.org/[FileZilla] if you need to.
+Edit `/opt/swizzin/swizzin.cfg` and add `FORMS_LOGIN = False`
 
-. Edit `/etc/nginx/sites-enabled/default`
+NOTE: This is required to login to the Swizzin panel when using alternative ports.
+
+Move "wg0.conf" to `/etc/wireguard`; use an SFTP program such as https://filezilla-project.org/[FileZilla] if you need to.
+
+Edit `/etc/nginx/sites-enabled/default`
+
 - Change the listen port from 443 to a port you have forwarded in AirVPN, note that the port and local port cannot differ on AirVPN's website. 
 
-. Using your Swizzin user (not root), edit `~/.config/qBittorrent/qBittorrent.conf`:
+Using your Swizzin user (not root), edit `~/.config/qBittorrent/qBittorrent.conf`:
+
 - Change `WebUI\LocalHostAuth` to *false*.
 ** It's safe to bypass the localhost login requirement since Nginx protects this page already with a login.
 
-. Edit `/etc/ssh/sshd_config`, and change the Port to one you've port forwarded with AirVPN, note that again, the port and local port cannot differ on AirVPN's website.
+Edit `/etc/ssh/sshd_config`, and change the Port to one you've port forwarded with AirVPN, note that again, the port and local port cannot differ on AirVPN's website.
 
-. As root: `# systemctl restart ssh nginx panel qbittorrent@YOUR_SWIZZIN_USER`
+As root: +
+`# systemctl restart ssh nginx panel qbittorrent@YOUR_SWIZZIN_USER`
 
-. `# wg-quick up wg0`
+Enable the VPN on the server: +
+`# wg-quick up wg0`
 
-. Open the qBittorrent UI, likely https://example.airdns.org:12345
+Open the qBittorrent UI, likely https://example.airdns.org:12345
 
-. Click the Gear icon to go into the settings.
+Click the Gear icon to go into the settings.
 
-. *Advanced*
-- Network interface: wg0
+.*Advanced*
+* Network interface: wg0
 
-. Now for Plex, go to the URL -- likely https://example.airdns.org:54321 (this must have its local port set to 32400), then click the wrench icon, go to Settings -> Remote Access, and make sure it looks similar to the following: +
+Now for Plex, go to the URL -- likely https://example.airdns.org:54321 (this must have its local port set to 32400), then click the wrench icon, go to Settings -> Remote Access, and make sure it looks similar to the following: +
 image:plex port.png[]
 
 ====
 
 == Tips
-. Check your successful server logins occassionally with: +
+Check your successful server logins occassionally with: +
 `# last -w -F`
 
 == Private trackers
@@ -389,17 +418,17 @@ There are two good options, depending on what you're comfortable with.
 
 === Graphical
 
-. Syncthing
-- This is generally what you should use for syncing across drives or servers, the downside is the long wait time for a first folder scan.
-** `# box install syncthing` on the server(s).
+.https://syncthing.net/[Syncthing]
+* This is an okay option for syncing across drives or servers, the downside is the long wait time for a first folder scan.
+- `# box install syncthing` on the server(s).
 
-. https://filezilla-project.org/[FileZilla]
+.https://filezilla-project.org/[FileZilla]
 - This is the fastest SFTP client for downloads; given the following option is set to 10: +
 image:simultaneous transfers.png[]
 
 == Command-line
 
-. rsync
+.rsync
 - On the server (example is of moving all files under `/home/EXAMPLE_USER/torrents/qbittorrent/` to IP 31.3.3.7 on SSH port 6969): + 
 `# rsync --progress -atvz /home/EXAMPLE_USER/torrents/qbittorrent/* -e 'ssh -p 6969' EXAMPLE_USER@31.3.3.7:/home/EXAMPLE_USER/torrents/qbittorrent`
 
