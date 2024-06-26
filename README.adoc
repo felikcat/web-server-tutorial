@@ -40,7 +40,7 @@ If you're paranoid about DDoS attacks, get an OVH unmetered from https://www.ovh
 *AppArmor* is to stop software from doing what they shouldn't, hence better security. +
 *Unattended upgrades* is so you don't accidentally forget to update packages, which would cause security issues. +
 *UFW* is a firewall management tool for blocking off unused ports. +
-*Fail2ban* is to make bruteforce password attacks on your SSH much more difficult: +
+*Fail2ban* is to make bruteforce password attacks on SSH and your web server (nginx) much more difficult: +
 `# apt update && apt install irqbalance apparmor apparmor-utils unattended-upgrades apt-listchanges ufw fail2ban python3-systemd`
 
 - The following steps are required to make fail2ban work: +
@@ -49,7 +49,9 @@ If you're paranoid about DDoS attacks, get an OVH unmetered from https://www.ovh
 ** Edit `/etc/fail2ban/fail2ban.local` +
 `[DEFAULT] +
 allowipv6 = auto +
-logtarget = SYSTEMD-JOURNAL`
+logtarget = SYSTEMD-JOURNAL +
+banaction = ufw +
+banaction_allports = ufw`
 
 ** Edit `/etc/fail2ban/jail.local` +
 `[sshd] +
@@ -78,7 +80,14 @@ If you are going to use a VPN, make it a port you have forwarded on their websit
 - `# ufw default deny incoming; ufw enable`
 ** You will get kicked out, this is okay, re-login with the new SSH port.
 
-. 
+. Run `$ ssh-keygen` on your local computer/PC, use the default location unless you already have an SSH key there (in that case, put it elsewhere and remember it), then set the passphrase to something moderately complex using a password manager like Bitwarden. I recommend at least 30 characters long, lower & upper case characters with numbers, and no symbols.
+- Include `-i /DIRECTORY/TO/YOUR_FILE` if you put a custom location and/or name: +
+`$ ssh-copyid -p YOUR_SSH_PORT root@YOUR_SERVER_IP`
+- Check on the server to see if your key was installed successfully: +
+`# cat /root/.ssh/authorized_key`
+** Login with only the SSH key, and if it works, disable SSH password logins by editing: `/etc/ssh/sshd_config` +
+`PasswordAuthentication no`
+** `# systemctl restart ssh`
 
 
 NOTE: You can skip Swizzin installation if you already have it, for example, through hostingby.design's Swizzin OS template. +
