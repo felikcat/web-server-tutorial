@@ -119,12 +119,14 @@ Use libtorrent v1.2.x instead of v2, as v2 has issues with disk performance / ca
 Retreive then run Swizzin: +
 `# bash <(wget -qO - s5n.sh) && . ~/.bashrc`
 
-Through Swizzin, install the following:
+.Through Swizzin, install the following:
 * panel
 * nginx
 * qbittorrent -> 4.6.5
 * plex (only if you're streaming movies / TV shows)
 - See https://swizzin.ltd/getting-started/box-basics[here] for how to interact with Swizzin after its installation.
+
+''''
 
 ====
 
@@ -137,9 +139,10 @@ Edit `/etc/default/grub`:
 
 * Add `transparent_hugepage=never numa_balancing=disable` to `GRUB_CMDLINE_LINUX_DEFAULT`, this aids in maintaining low networking latency.
 
+Generate the new boot configuration: +
 `# grub-mkconfig -o /boot/grub/grub.cfg`
 
-Edit `/etc/sysctl.d/99-custom.conf`; note that these settings are a bit wasteful on 1gbps servers, but there shouldn't be a perceivable negative impact from it.
+Edit `/etc/sysctl.d/99-custom.conf`; note that these settings are a bit wasteful on 1gbps servers, but there shouldn't be a perceivable negative impact from it:
 
 ```
 # Don't save core dumps anywhere for better security, and less disk usage.
@@ -218,14 +221,18 @@ Additional hardening via AppArmor: +
 - If those two packages don't exist, run: + 
 `# echo 'deb http://deb.debian.org/debian bookworm-backports main contrib non-free' >> /etc/apt/sources.list`
 - Follow https://apparmor.pujol.io/install/[AppArmor.d's official instructions] on installing additional AppArmor profiles.
-** If there is a broken AppArmor profile, remove it, such as `# rm /etc/apparmor.d/home.tor-browser.firefox`.
+** If there is a broken AppArmor profile, remove it, such as +
+`# rm /etc/apparmor.d/home.tor-browser.firefox`.
 
-* Edit `/etc/apparmor.d/qbittorrent-nox` and add the following line (that contains @{HOME}):
--  image:qbittorrent apparmor.png[] +
+Edit `/etc/apparmor.d/qbittorrent-nox` and add the following line (that contains @{HOME}): +
+image:qbittorrent apparmor.png[] +
 Remove /storage/ if not applicable.
-- `# aa-enforce -d /etc/apparmor.d qbittorrent-nox php-fpm`
 
-* `# systemctl reboot`
+Now we can enforce AppArmor profiles for our web-facing applications: +
+`# aa-enforce -d /etc/apparmor.d qbittorrent-nox php-fpm`
+
+Restart the server to apply our GRUB and sysctl changes: +
+`# systemctl reboot`
 
 == 2. Setting up qBittorrent
 Allow port 443: +
