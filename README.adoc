@@ -400,7 +400,7 @@ image:simultaneous transfers.png[]
 == Command-line
 
 . rsync
-- On the server (example is of moving a file to IP 31.3.3.7 on SSH port 6969): + 
+- On the server (example is of moving all files under `/home/EXAMPLE_USER/torrents/qbittorrent/` to IP 31.3.3.7 on SSH port 6969): + 
 `# rsync --progress -atvz /home/EXAMPLE_USER/torrents/qbittorrent/* -e 'ssh -p 6969' EXAMPLE_USER@31.3.3.7:/home/EXAMPLE_USER/torrents/qbittorrent`
 
 == Appendices
