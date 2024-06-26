@@ -343,6 +343,9 @@ image:plex port.png[]
 .Myanonamouse
 
 Setting a dynamic seedbox IP: + 
+
+Your username -> Preferences -> Security -> Create session with the IP -> go back to Security -> then click "Allow session to set dynamic seedbox IP +
+image:MAM allow dynamic.png[] +
 image:MAM cookie.png[]
 
 == File transfers / backups
@@ -367,9 +370,6 @@ image:simultaneous transfers.png[]
 == Appendices
 
 .Learning resources used
-[%collapsible]
-====
-
 . hostingby.design's server templates.
 . ofnir & imabee's advice on qBittorrent settings.
 . https://www.emqx.com/en/blog/emqx-performance-tuning-tcp-syn-queue-and-accept-queue
@@ -378,5 +378,3 @@ image:simultaneous transfers.png[]
 . https://learn.microsoft.com/en-us/azure/virtual-network/virtual-network-tcpip-performance-tuning
 . https://docs.redhat.com/en/documentation/red_hat_enterprise_linux/9/html/monitoring_and_managing_system_status_and_performance/tuning-the-network-performance_monitoring-and-managing-system-status-and-performance
 . https://madaidans-insecurities.github.io/guides/linux-hardening.html
-
-====
