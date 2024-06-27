@@ -120,7 +120,7 @@ Edit `/etc/default/grub`:
 Generate the new boot configuration: +
 `# grub-mkconfig -o /boot/grub/grub.cfg`
 
-Edit `/etc/sysctl.d/99-custom.conf`; note that these settings are a bit wasteful on 1gbps servers, but there shouldn't be a perceivable negative impact from it:
+Edit `/etc/sysctl.d/99-custom.conf`; note that these settings might be wasteful on 1gbps servers, but there shouldn't be a perceivable negative impact from it:
 
 ```
 # Don't save core dumps anywhere for better security, and less disk usage.
@@ -132,13 +132,14 @@ fs.suid_dumpable = 0
 # The fq (fair queueing) qdisc is recommended for BBR, instead of the default fq_codel
 net.core.default_qdisc = fq
 
-# Keep network throughput consistently high even with packet loss, at the cost of a little maximum upload burst
+# Keep network throughput consistently high even with packet loss,
+# at the cost of a little maximum upload burst
 net.ipv4.tcp_congestion_control = bbr
 
 # Use TCP Fast Open for both incoming and outgoing connections to reduce latency
 net.ipv4.tcp_fastopen = 3
 
-# Ensure MTU is valid to prevent stuck connection(s); very useful on misconfigured networks:
+# Ensure MTU is valid to prevent stuck connections; very useful on misconfigured networks:
 # https://blog.cloudflare.com/path-mtu-discovery-in-practice/
 net.ipv4.tcp_mtu_probing = 1
 
@@ -168,7 +169,7 @@ net.ipv4.tcp_rfc1337 = 1
 # Allow 3/4 of available free memory in the receive buffer
 net.ipv4.tcp_adv_win_scale = 2
 
-# Allow ping to be ran under a normal user, fixing "Operation not permitted".
+# Allow ping to be ran under a normal user, fixing "Operation not permitted"
 net.ipv4.ping_group_range = 0 1000
 
 kernel.sched_autogroup_enabled = 0
@@ -416,8 +417,8 @@ image:plex port.png[]
 Check your successful server logins occassionally with: +
 `# last -w -F`
 
-== Private trackers
-.Myanonamouse
+== Private tracker tips
+.*Myanonamouse*
 
 Setting a dynamic seedbox IP: + 
 
