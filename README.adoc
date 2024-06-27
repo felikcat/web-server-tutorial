@@ -58,14 +58,15 @@ Remove all lines containing Hetzner.
 
 TIP: *irqbalance* balances interrupts across CPU cores to handle high load more efficiently, which can prevent low networking performance. +
 *AppArmor* is to stop software from doing what they shouldn't, hence better security. +
+*auditd & apparmor-notify* is to allow viewing AppArmor logs, but also installing auditd allows AppArmor profiles to be created by you. +
 *Unattended upgrades* is so you don't accidentally forget to update packages, which would cause security issues. +
 *UFW* is a firewall management tool for blocking off unused ports. +
 *Fail2ban* is to make bruteforce password attacks on SSH and your web server (nginx) much more difficult. +
 *apt-transport-https* is to allow apt to operate over HTTPS to prevent security flaws such as https://justi.cz/security/2019/01/22/apt-rce.html[RCEs].
 
-`# apt update && apt install irqbalance apparmor apparmor-utils unattended-upgrades apt-listchanges ufw fail2ban python3-systemd apt-transport-https`
+`# apt update && apt install irqbalance apparmor apparmor-utils auditd apparmor-notify unattended-upgrades apt-listchanges ufw fail2ban python3-systemd apt-transport-https`
 
-Edit `/etc/apt/sources.list` and change `http://` to `https://`: +
+Edit `/etc/apt/sources.list` and change `http://` to `https://`, also enable the backports repository: +
 image:apt https.png[]
 
 Change the default SSH port to something other than 22, by editing: +
@@ -188,7 +189,8 @@ vm.zone_reclaim_mode = 1
 ```
 
 NOTE: You can skip Swizzin installation if you already have it, for example, through hostingby.design's Swizzin OS template. +
-hostingby.design and Andy10gbit would in that case already have qBittorrent using libtorrent v1.2.x installed.
+hostingby.design and Andy10gbit would in that case already have qBittorrent using libtorrent v1.2.x installed. +
+If you want Plex though, run `# box install plex`
 
 .Install Swizzin, which are high-quality automation scripts to make administrating a seedbox easier; through which we *install qBittorrent and optionally Plex*
 [%collapsible]
@@ -442,6 +444,9 @@ image:plex port.png[]
 == Tips
 Check your successful server logins occassionally with: +
 `# last -w -F`
+
+View the AppArmor denials for 1 day: +
+`# aa-notify -s 1 -v`
 
 == Private tracker tips
 .*Myanonamouse*
