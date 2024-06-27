@@ -41,6 +41,21 @@ On Hetzner, format and install Debian 12 as RAID0 if applicable, as to not waste
 
 Login as the `root` user after Debian's installation is complete, or use `sudo -i` to escalate to root privileges.
 
+If the current user is root, make an administrator account instead to avoid mistakes. By default it'll be a user, unprivileged, but can escalate to root via using `sudo` before a command: +
+`useradd -m -G sudo -s /bin/bash admin`
+
+Set the passphrase to something moderately complex using a password manager like Bitwarden. I recommend at least 30 characters long, lower & upper case characters with numbers, and no symbols. +
+`passwd admin`
+
+Login to 'admin' and test if sudo works (it should output -> root): +
+`sudo whoami`
+
+Remove Hetzner repositories, as it can make Debian lag behind in package updates, which is bad for security: +
+`# rm /etc/apt/sources.list.d/hetzner-security-updates.list; rm /etc/apt/apt.conf.d/99hetzner`
+
+* Edit `/etc/apt/sources.list`: +
+Remove all lines containing Hetzner. 
+
 TIP: *irqbalance* balances interrupts across CPU cores to handle high load more efficiently, which can prevent low networking performance. +
 *AppArmor* is to stop software from doing what they shouldn't, hence better security. +
 *Unattended upgrades* is so you don't accidentally forget to update packages, which would cause security issues. +
@@ -48,44 +63,6 @@ TIP: *irqbalance* balances interrupts across CPU cores to handle high load more 
 *Fail2ban* is to make bruteforce password attacks on SSH and your web server (nginx) much more difficult.
 
 `# apt update && apt install irqbalance apparmor apparmor-utils unattended-upgrades apt-listchanges ufw fail2ban python3-systemd`
-
-The following steps are required to make fail2ban work: +
-`# echo "sshd_backend = systemd" >> /etc/fail2ban/paths-debian.conf`
-
-Edit `/etc/fail2ban/fail2ban.local`: +
-```
-[DEFAULT]
-allowipv6 = auto
-backend = systemd
-banaction = ufw
-banaction_allports = ufw
-bantime = 2h
-ignoreip = 127.0.0.1/8
-logtarget = SYSTEMD-JOURNAL
-maxretry = 5
-```
-
-Edit `/etc/fail2ban/jail.local`: +
-```
-[sshd]
-enabled = true
-port = ssh
-
-[nginx-http-auth]
-enabled = true
-port = http,https
-logpath = %(nginx_error_log)s
-```
-
-`# systemctl restart fail2ban`
-
-Enable automatic updates: +
-`# echo -e 'APT::Periodic::Update-Package-Lists "1";\nAPT::Periodic::Unattended-Upgrade "1";' > /etc/apt/apt.conf.d/20auto-upgrades`
-
-`# systemctl enable --now apt-daily.timer apt-daily-upgrade.timer`
-
-Edit `/etc/fstab` and add "noatime" to the XFS partition: +
-image:fstab.png[]
 
 Change the default SSH port to something other than 22, by editing: +
 `/etc/ssh/sshd_config`
@@ -98,14 +75,23 @@ TIP: If you are going to use a VPN, make it a port you have forwarded on their w
 - `# ufw default deny incoming; ufw enable`
 ** You will get kicked out, this is okay, re-login with the new SSH port.
 
+Enable automatic updates: +
+`# echo -e 'APT::Periodic::Update-Package-Lists "1";\nAPT::Periodic::Unattended-Upgrade "1";' > /etc/apt/apt.conf.d/20auto-upgrades`
+
+`# systemctl enable --now apt-daily.timer apt-daily-upgrade.timer`
+
+Edit `/etc/fstab` and add "noatime" to the XFS partition: +
+image:fstab.png[]
+
 Run `$ ssh-keygen` on your local computer/PC, use the default location unless you already have an SSH key there (in that case, put it elsewhere and remember it), then set the passphrase to something moderately complex using a password manager like Bitwarden. I recommend at least 30 characters long, lower & upper case characters with numbers, and no symbols.
 
 - Include `-i /DIRECTORY/TO/YOUR_FILE` if you put a custom location and/or name: +
-`$ ssh-copyid -p YOUR_SSH_PORT root@YOUR_SERVER_IP`
+`$ ssh-copy-id -p YOUR_SSH_PORT admin@YOUR_SERVER_IP`
 - Check on the server to see if your key was installed successfully: +
 `# cat /root/.ssh/authorized_keys`
-** Login with only the SSH key, and if it works, disable SSH password logins by editing `/etc/ssh/sshd_config`: +
-`PasswordAuthentication no`
+** Login with only the SSH key for the 'admin' user, and if it works, disable SSH password logins and the root account by editing `/etc/ssh/sshd_config`: +
+`PasswordAuthentication no +
+PermitRootLogin no`
 ** `# systemctl restart ssh`
 
 Use https://github.com/zabbly/linux?tab=readme-ov-file#installation[zabbly's official instructions] on installing a mainline Linux kernel, this is done for its performance and security benefits.
@@ -116,6 +102,11 @@ Edit `/etc/default/grub`:
 ** Also run: `# sed -i 's/^blacklist i915/#&/' /etc/modprobe.d/blacklist-hetzner.conf`
 
 * Add `transparent_hugepage=never numa_balancing=disable` to `GRUB_CMDLINE_LINUX_DEFAULT`, this aids in maintaining low networking latency.
+
+* Add the kernel command line options from the https://kernsec.org/wiki/index.php/Kernel_Self_Protection_Project/Recommended_Settings#kernel_command_line_options[Kernel Self Protection Project], and include the x86_64 options too. I would recommend using the "slow" options at first, to see if your server can handle it.
+
+- To make it easy (please check the KSPP link and compare): +
+`hardened_usercopy=1 init_on_alloc=1 init_on_free=1 randomize_kstack_offset=on page_alloc.shuffle=1 slab_nomerge pti=on nosmt iommu.passthrough=0 iommu.strict=1 mitigations=auto,nosmt vsyscall=none vdso32=0 cfi=kcfi`
 
 Generate the new boot configuration: +
 `# grub-mkconfig -o /boot/grub/grub.cfg`
@@ -218,6 +209,37 @@ See https://swizzin.ltd/getting-started/box-basics[here] for how to interact wit
 ====
 
 After a little break, it's time to harden our sysctl settings further, use https://kernsec.org/wiki/index.php/Kernel_Self_Protection_Project/Recommended_Settings#sysctls[this as a guide]; but be sure to not use `kernel.modules_disabled`, `kernel.warn_limit`, and `kernel.oops_limit`!
+
+// fail2ban is done after nginx is installed so it doesn't error on [nginx-http-auth].
+The following steps are required to make fail2ban work: +
+`# echo "sshd_backend = systemd" >> /etc/fail2ban/paths-debian.conf`
+
+Edit `/etc/fail2ban/fail2ban.local`: +
+```
+[DEFAULT]
+allowipv6 = auto
+backend = systemd
+banaction = ufw
+banaction_allports = ufw
+bantime = 2h
+ignoreip = 127.0.0.1/8
+logtarget = SYSTEMD-JOURNAL
+maxretry = 5
+```
+
+Edit `/etc/fail2ban/jail.local`: +
+```
+[sshd]
+enabled = true
+port = YOUR_SSH_PORT
+
+[nginx-http-auth]
+enabled = true
+port = http,https
+logpath = %(nginx_error_log)s
+```
+
+`# systemctl restart fail2ban`
 
 Additional hardening via AppArmor: +
 `# apt install -t bookworm-backports golang-go`
@@ -422,12 +444,12 @@ Check your successful server logins occassionally with: +
 
 Setting a dynamic seedbox IP: + 
 
-Your username -> Preferences -> Security -> Create session with the IP -> go back to Security -> then click "Allow session to set dynamic seedbox IP +
+Your username -> Preferences -> Security -> Create session with the IP -> go back to Security -> then click "Allow session to set dynamic seedbox IP": +
 image:MAM allow dynamic.png[] +
 image:MAM cookie.png[]
 
 == File transfers / backups
-There are two good options, depending on what you're comfortable with.
+There are three good options, two graphical, one command-line, depending on what you're comfortable with.
 
 === Graphical
 
@@ -456,3 +478,4 @@ image:simultaneous transfers.png[]
 . https://learn.microsoft.com/en-us/azure/virtual-network/virtual-network-tcpip-performance-tuning
 . https://docs.redhat.com/en/documentation/red_hat_enterprise_linux/9/html/monitoring_and_managing_system_status_and_performance/tuning-the-network-performance_monitoring-and-managing-system-status-and-performance
 . https://madaidans-insecurities.github.io/guides/linux-hardening.html
+. https://blog.cloudflare.com/path-mtu-discovery-in-practice/
