@@ -60,9 +60,13 @@ TIP: *irqbalance* balances interrupts across CPU cores to handle high load more 
 *AppArmor* is to stop software from doing what they shouldn't, hence better security. +
 *Unattended upgrades* is so you don't accidentally forget to update packages, which would cause security issues. +
 *UFW* is a firewall management tool for blocking off unused ports. +
-*Fail2ban* is to make bruteforce password attacks on SSH and your web server (nginx) much more difficult.
+*Fail2ban* is to make bruteforce password attacks on SSH and your web server (nginx) much more difficult. +
+*apt-transport-https* is to allow apt to operate over HTTPS to prevent security flaws such as https://justi.cz/security/2019/01/22/apt-rce.html[RCEs].
 
-`# apt update && apt install irqbalance apparmor apparmor-utils unattended-upgrades apt-listchanges ufw fail2ban python3-systemd`
+`# apt update && apt install irqbalance apparmor apparmor-utils unattended-upgrades apt-listchanges ufw fail2ban python3-systemd apt-transport-https`
+
+Edit `/etc/apt/sources.list` and change `http://` to `https://`: +
+image:apt https.png[]
 
 Change the default SSH port to something other than 22, by editing: +
 `/etc/ssh/sshd_config`
