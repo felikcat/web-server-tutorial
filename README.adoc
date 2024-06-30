@@ -10,7 +10,7 @@ ifdef::env-github[]
 endif::[]
 
 == About
-This is a minimalist Debian 12 seedbox setup that is oriented around fast and stable seeding, for both private and public trackers. It also covers optionally setting up qBittorent and Plex through a VPN.
+This is a minimalist Debian 12 (preferred) or Ubuntu Server seedbox setup that is oriented around fast and stable seeding, for both private and public trackers. It also covers optionally setting up qBittorent and Plex through a VPN.
 
 It is bare-metal, not using any Dockers, so networking performance for 10gbit servers doesn't suffer.
 
@@ -41,20 +41,27 @@ On Hetzner, format and install Debian 12 as RAID0 if applicable, as to not waste
 
 Login as the `root` user after Debian's installation is complete, or use `sudo -i` to escalate to root privileges.
 
+Install sudo: +
+`# apt install sudo`
+
 If the current user is root, make an administrator account instead to avoid mistakes. By default it'll be a user, unprivileged, but can escalate to root via using `sudo` before a command: +
-`# useradd -m -G sudo -s /bin/bash admin`
+`# useradd -m -G sudo -s /bin/bash server`
 
 Set the passphrase to something moderately complex using a password manager like Bitwarden. I recommend at least 30 characters long, lower & upper case characters with numbers, and no symbols. +
-`# passwd admin`
+`# passwd server`
 
-Login to 'admin' and test if sudo works (it should output -> root): +
-`# sudo whoami`
+Login to 'server' and test if sudo works (it should output -> root): +
+`sudo whoami`
 
-Remove Hetzner repositories, as it can make Debian lag behind in package updates, which is bad for security: +
-`# rm /etc/apt/sources.list.d/hetzner-security-updates.list; rm /etc/apt/apt.conf.d/99hetzner`
+The 'server' user is now going to be used instead of using 'root' directly.
 
-* Edit `/etc/apt/sources.list`: +
-Remove all lines containing Hetzner. 
+TIP: If you're using a laptop as a server, set `HandleLidSwitchExternalPower=ignore` in `/etc/systemd/login.conf`. +
+Then run: `sudo systemctl restart systemd-logind`
+
+Remove Hetzner repositories, as it can make the OS lag behind in package updates, which is bad for security: +
+`sudo rm /etc/apt/sources.list.d/hetzner-security-updates.list; sudo rm /etc/apt/apt.conf.d/99hetzner`
+
+Sudo edit `/etc/apt/sources.list`, and remove all lines containing Hetzner. 
 
 TIP: *irqbalance* balances interrupts across CPU cores to handle high load more efficiently, which can prevent low networking performance. +
 *AppArmor* is to stop software from doing what they shouldn't, hence better security. +
@@ -64,47 +71,66 @@ TIP: *irqbalance* balances interrupts across CPU cores to handle high load more 
 *Fail2ban* is to make bruteforce password attacks on SSH and your web server (nginx) much more difficult. +
 *apt-transport-https* is to allow apt to operate over HTTPS to prevent security flaws such as https://justi.cz/security/2019/01/22/apt-rce.html[RCEs].
 
-`# apt update && apt install irqbalance apparmor apparmor-utils auditd apparmor-notify unattended-upgrades apt-listchanges ufw fail2ban python3-systemd apt-transport-https`
+`sudo apt update && sudo apt install irqbalance apparmor apparmor-utils auditd apparmor-notify unattended-upgrades apt-listchanges ufw fail2ban python3-systemd apt-transport-https ansible`
 
-Edit `/etc/apt/sources.list` and change `http://` to `https://`, also enable the backports repository: +
+.*For Ubuntu:* Setting up kernel hotpatching support; to update the kernel automatically without rebooting.
+. `sudo apt install ubuntu-advantage-tools`
+. You have to make an Ubuntu account to use Ubuntu Pro's functionality: +
+`sudo ua attach`
+
+*For Debian:* You can https://tuxcare.com/blog/how-to-try-or-purchase-kernelcare-2-different-ways/[purchase KernelCare+] for $5.95 per server per month or $71 per server per year, it also hotpatches glibc and OpenSSL, which Ubuntu Pro doesn't cover.
+
+
+*For Debian:* +
+Sudo edit `/etc/apt/sources.list` and change `http://` to `https://`, also enable the backports repository: +
 image:apt https.png[]
 
-Change the default SSH port to something other than 22, by editing: +
-`/etc/ssh/sshd_config`
+NOTE: If bookworm-backports is not there, use this: +
+`deb https://deb.debian.org/debian bookworm-backports main contrib non-free-firmware` +
+Then run `sudo apt update`.
 
-TIP: If you are going to use a VPN, make it a port you have forwarded on their website.
-
-- `# systemctl restart ssh`
-- `# ufw allow YOUR_SSH_PORT`
-- `# ufw allow https`
-- `# ufw default deny incoming; ufw enable`
-** You will get kicked out, this is okay, re-login with the new SSH port.
-
-Enable automatic updates: +
-`# echo -e 'APT::Periodic::Update-Package-Lists "1";\nAPT::Periodic::Unattended-Upgrade "1";' > /etc/apt/apt.conf.d/20auto-upgrades`
-
-`# systemctl enable --now apt-daily.timer apt-daily-upgrade.timer`
-
-Edit `/etc/fstab` and add "noatime" to the XFS partition: +
+Sudo edit `/etc/fstab` and add "noatime" to the XFS partition: +
 image:fstab.png[]
 
-Run `$ ssh-keygen` on your local computer/PC, use the default location unless you already have an SSH key there (in that case, put it elsewhere and remember it), then set the passphrase to something moderately complex using a password manager like Bitwarden. I recommend at least 30 characters long, lower & upper case characters with numbers, and no symbols.
+// Do this before hardening via dev-sec, otherwise they'll be locked out.
+Run `ssh-keygen` on your local computer/PC, use the default location unless you already have an SSH key there (in that case, put it elsewhere and remember it), then set the passphrase to something moderately complex using a password manager like Bitwarden. I recommend at least 30 characters long, lower & upper case characters with numbers, and no symbols.
 
-- Include `-i /DIRECTORY/TO/YOUR_FILE` if you put a custom location and/or name: +
-`$ ssh-copy-id -p YOUR_SSH_PORT admin@YOUR_SERVER_IP`
-- Check on the server to see if your key was installed successfully: +
-`# cat /root/.ssh/authorized_keys`
-** Login with only the SSH key for the 'admin' user, and if it works, disable SSH password logins and the root account by editing `/etc/ssh/sshd_config`: +
-`PasswordAuthentication no +
-PermitRootLogin no`
-** `# systemctl restart ssh`
+* Include `-i /DIRECTORY/TO/YOUR_FILE` if you put a custom location and/or name: +
+`ssh-copy-id -p YOUR_SSH_PORT server@YOUR_SERVER_IP`
 
-Use https://github.com/zabbly/linux?tab=readme-ov-file#installation[zabbly's official instructions] on installing a mainline Linux kernel, this is done for its performance and security benefits.
+* Check on the server to see if your key was installed successfully: +
+`cat ~/.ssh/authorized_keys`
 
-Edit `/etc/default/grub`:
+* Login with only the SSH key for the 'server' user, and if it works, proceed with the next hardening step.
+
+Install what we'll use to automatically harden lots of settings relating to SQL, nginx, Linux, and SSH; note that for Debian 12 this will take a really long time, while on Ubuntu it's fast: +
+`sudo ansible-galaxy collection install -U devsec.hardening --force -vvv`
+
+Edit: `~/harden.yaml`; change the SSH server port to what you forwarded for your VPN if applicable:
+```yaml
+- name: Do hardening via dev-sec's collection
+  hosts: localhost
+  roles:
+    - devsec.hardening.os_hardening
+    - devsec.hardening.ssh_hardening
+  vars:
+    - ssh_server_ports: ["55820"]
+```
+
+.Setup the firewall:
+- `sudo ufw allow YOUR_SSH_PORT`
+- `sudo ufw allow https`
+
+Now we automatically harden: +
+`sudo ansible-playbook ~/harden.yaml`
+
+Complete the firewall setup; this will kick you out of the SSH session, relogin in with the new SSH port. +
+`sudo ufw default deny incoming; ufw enable`
+
+Sudo edit `/etc/default/grub`:
 
 * Remove `nomodeset` to allow the Intel iGPU to run, which is desirable for Plex, Emby, or Jellyfin.
-** Also run: `# sed -i 's/^blacklist i915/#&/' /etc/modprobe.d/blacklist-hetzner.conf`
+** Also run: `sudo sed -i 's/^blacklist i915/#&/' /etc/modprobe.d/blacklist-hetzner.conf`
 
 * Add `transparent_hugepage=never numa_balancing=disable` to `GRUB_CMDLINE_LINUX_DEFAULT`, this aids in maintaining low networking latency.
 
@@ -114,9 +140,9 @@ Edit `/etc/default/grub`:
 `hardened_usercopy=1 init_on_alloc=1 init_on_free=1 randomize_kstack_offset=on page_alloc.shuffle=1 slab_nomerge pti=on nosmt iommu.passthrough=0 iommu.strict=1 mitigations=auto,nosmt vsyscall=none vdso32=0 cfi=kcfi`
 
 Generate the new boot configuration: +
-`# grub-mkconfig -o /boot/grub/grub.cfg`
+`sudo grub-mkconfig -o /boot/grub/grub.cfg`
 
-Edit `/etc/sysctl.d/99-custom.conf`; note that these settings might be wasteful on 1gbps servers, but there shouldn't be a perceivable negative impact from it:
+Sudo edit `/etc/sysctl.d/99-custom.conf`; note that these settings might be wasteful on 1gbps servers, but there shouldn't be a perceivable negative impact from it:
 
 ```
 # Don't save core dumps anywhere for better security, and less disk usage.
@@ -190,13 +216,14 @@ vm.zone_reclaim_mode = 1
 
 NOTE: You can skip Swizzin installation if you already have it, for example, through hostingby.design's Swizzin OS template. +
 hostingby.design and Andy10gbit would in that case already have qBittorrent using libtorrent v1.2.x installed. +
-If you want Plex though, run `# box install plex`
+If you want Plex though, run `sudo box install plex`
 
 .Install Swizzin, which are high-quality automation scripts to make administrating a seedbox easier; through which we *install qBittorrent and optionally Plex*
 [%collapsible]
 ====
 
 Use libtorrent v1.2.x instead of v2, as v2 has issues with disk performance / caching. +
+`sudo -i`
 `# export libtorrent_github_tag=RC_1_2`
 
 Retreive then run Swizzin: +
@@ -210,17 +237,18 @@ Retreive then run Swizzin: +
 
 See https://swizzin.ltd/getting-started/box-basics[here] for how to interact with Swizzin after its installation.
 
+Exit the root user: +
+`# exit`
+
 ''''
 
 ====
 
-After a little break, it's time to harden our sysctl settings further, use https://kernsec.org/wiki/index.php/Kernel_Self_Protection_Project/Recommended_Settings#sysctls[this as a guide]; but be sure to not use `kernel.modules_disabled`, `kernel.warn_limit`, and `kernel.oops_limit`!
-
 // fail2ban is done after nginx is installed so it doesn't error on [nginx-http-auth].
 The following steps are required to make fail2ban work: +
-`# echo "sshd_backend = systemd" >> /etc/fail2ban/paths-debian.conf`
+`echo "sshd_backend = systemd" | sudo tee -a /etc/fail2ban/paths-debian.conf`
 
-Edit `/etc/fail2ban/fail2ban.local`: +
+Sudo edit `/etc/fail2ban/fail2ban.local`: +
 ```
 [DEFAULT]
 allowipv6 = auto
@@ -233,7 +261,7 @@ logtarget = SYSTEMD-JOURNAL
 maxretry = 5
 ```
 
-Edit `/etc/fail2ban/jail.local`: +
+Sudo edit `/etc/fail2ban/jail.local`: +
 ```
 [sshd]
 enabled = true
@@ -245,33 +273,30 @@ port = http,https
 logpath = %(nginx_error_log)s
 ```
 
-`# systemctl restart fail2ban`
+`sudo systemctl restart fail2ban`
 
 Additional hardening via AppArmor: +
-`# apt install -t bookworm-backports golang-go`
+`sudo apt install -t bookworm-backports golang-go`
 
 * If those two packages don't exist, run: + 
-`# echo 'deb http://deb.debian.org/debian bookworm-backports main contrib non-free' >> /etc/apt/sources.list`
+`echo 'deb http://deb.debian.org/debian bookworm-backports main contrib non-free' | sudo tee -a /etc/apt/sources.list`
 
 Follow https://apparmor.pujol.io/install/[AppArmor.d's official instructions] on installing additional AppArmor profiles.
 
 * If there is a broken AppArmor profile, remove it, such as +
-`# rm /etc/apparmor.d/home.tor-browser.firefox`.
+`sudo rm /etc/apparmor.d/home.tor-browser.firefox`.
 
-Edit `/etc/apparmor.d/qbittorrent-nox` and add the following line (that contains @{HOME}): +
+Sudo edit `/etc/apparmor.d/qbittorrent-nox` and add the following line (that contains @{HOME}): +
 image:qbittorrent apparmor.png[] +
-Remove /storage/ if not applicable.
+Remove `/storage/` if not applicable.
 
 Now we can enforce AppArmor profiles for our web-facing applications: +
-`# aa-enforce -d /etc/apparmor.d qbittorrent-nox php-fpm`
+`sudo aa-enforce -d /etc/apparmor.d qbittorrent-nox php-fpm`
 
 Restart the server to apply our GRUB and sysctl changes: +
-`# systemctl reboot`
+`sudo systemctl reboot`
 
 == 2. Setting up qBittorrent
-Allow port 443: +
-`# ufw allow https`
-
 Open the Swizzin panel, which should be on the root of your IP such as https://EXAMPLE_IP.
 
 Click the Gear icon to go into the settings.
@@ -286,7 +311,7 @@ Click the Gear icon to go into the settings.
 - Peer connection protocol: TCP
 - Use UPnP / NAT-PMP port forwarding from my router: ON
 - Uncheck all under Connections Limits!
-- `# ufw allow PORT_FOR_INCOMING_CONNECTIONS`
+- `sudo ufw allow PORT_FOR_INCOMING_CONNECTIONS`
 
 .*BitTorrent*
 - Encryption mode: Allow encryption
@@ -387,7 +412,7 @@ WARNING: This will slow down 10gbit servers to around 1.2gbit.
 
 Here we're going to use https://airvpn.org/?referred_by=224244[AirVPN] (referral link, thank you if you use it); their servers are reliable, fast, and support port forwarding which is a requirement. I've personally used them since 2016, and struggled to find better VPNs, especially when needing port forwarding.
 
-`# ufw route allow in on wg0; ufw allow 1637/udp`
+`sudo ufw route allow in on wg0; sudo ufw allow 1637/udp`
 
 Open AirVPN's website, go to "Client Area", then "VPN Devices -> Manage". Here you assign a new device with whatever name you want; personally I'd name it "Hetzner".
 
@@ -404,30 +429,30 @@ Edit "wg0.conf":
 * Remove the line containing `PersistentKeepalive`.
 
 Install Wireguard on the server: +
-`# apt install wireguard resolvconf`
+`sudo apt install wireguard resolvconf`
 
-Edit `/opt/swizzin/swizzin.cfg` and add `FORMS_LOGIN = False`
+Sudo edit `/opt/swizzin/swizzin.cfg` and add `FORMS_LOGIN = False`
 
 NOTE: This is required to login to the Swizzin panel when using alternative ports.
 
 Move "wg0.conf" to `/etc/wireguard`; use an SFTP program such as https://filezilla-project.org/[FileZilla] if you need to.
 
-Edit `/etc/nginx/sites-enabled/default`
+Sudo edit `/etc/nginx/sites-enabled/default`
 
 - Change the listen port from 443 to a port you have forwarded in AirVPN, note that the port and local port cannot differ on AirVPN's website. 
 
-Using your Swizzin user (not root), edit `~/.config/qBittorrent/qBittorrent.conf`:
+Using your Swizzin user, edit `~/.config/qBittorrent/qBittorrent.conf`:
 
 - Change `WebUI\LocalHostAuth` to *false*.
 ** It's safe to bypass the localhost login requirement since Nginx protects this page already with a login.
 
-Edit `/etc/ssh/sshd_config`, and change the Port to one you've port forwarded with AirVPN, note that again, the port and local port cannot differ on AirVPN's website.
+Sudo edit `/etc/ssh/sshd_config`, and change the Port to one you've port forwarded with AirVPN, note that again, the port and local port cannot differ on AirVPN's website.
 
 As root: +
-`# systemctl restart ssh nginx panel qbittorrent@YOUR_SWIZZIN_USER`
+`sudo systemctl restart ssh nginx panel qbittorrent@YOUR_SWIZZIN_USER`
 
 Enable the VPN on the server: +
-`# wg-quick up wg0`
+`sudo wg-quick up wg0`
 
 Open the qBittorrent UI, likely https://example.airdns.org:12345
 
@@ -442,11 +467,22 @@ image:plex port.png[]
 ====
 
 == Tips
+If you end up enforcing all of apparmor.d's rules, here's what I recommend putting on no enforcement and no warnings: +
+`sudo aa-disable sudo apt apt-methods-file apt-extracttemplates apt-listchanges dpkg-split dpkg-deb unattended-upgrade aa-notify`
+
+* Disabling the `sudo` apparmor.d profile is my preference due to it requiring you to enter your password on every single `sudo` command ran, which gets annoying fast.
+
 Check your successful server logins occassionally with: +
-`# last -w -F`
+`sudo last -w -F`
 
 View the AppArmor denials for 1 day: +
-`# aa-notify -s 1 -v`
+`sudo aa-notify -s 1 -v`
+
+Reload an AppArmor profile after changing it: +
+`sudo aa-enforce THE_PROFILE`
+
+Monitor system resources live; run without `sudo` to view the current user's processes only: +
+`sudo htop`
 
 == Private tracker tips
 .*Myanonamouse*
@@ -464,7 +500,7 @@ There are three good options, two graphical, one command-line, depending on what
 
 .https://syncthing.net/[Syncthing]
 * This is an okay option for syncing across drives or servers, the downside is the long wait time for a first folder scan.
-- `# box install syncthing` on the server(s).
+- `sudo box install syncthing` on the server(s).
 
 .https://filezilla-project.org/[FileZilla]
 - This is the fastest SFTP client for downloads; given the following option is set to 10: +
@@ -474,7 +510,7 @@ image:simultaneous transfers.png[]
 
 .rsync
 - On the server (example is of moving all files under `/home/EXAMPLE_USER/torrents/qbittorrent/` to IP 31.3.3.7 on SSH port 6969): + 
-`# rsync --progress -atvz /home/EXAMPLE_USER/torrents/qbittorrent/* -e 'ssh -p 6969' EXAMPLE_USER@31.3.3.7:/home/EXAMPLE_USER/torrents/qbittorrent`
+`rsync --progress -atvz /home/EXAMPLE_USER/torrents/qbittorrent/* -e 'ssh -p 6969' EXAMPLE_USER@31.3.3.7:/home/EXAMPLE_USER/torrents/qbittorrent`
 
 == Appendices
 
