@@ -281,6 +281,10 @@ Additional hardening via AppArmor: +
 * If those two packages don't exist, run: + 
 `echo 'deb http://deb.debian.org/debian bookworm-backports main contrib non-free' | sudo tee -a /etc/apt/sources.list`
 
+Optimize AppArmor for the loading of thousands of profiles: +
+`echo 'write-cache' | sudo tee -a /etc/apparmor/parser.conf` +
+`echo 'Optimize=compress-fast' | sudo tee -a /etc/apparmor/parser.conf`
+
 Follow https://apparmor.pujol.io/install/[AppArmor.d's official instructions] on installing additional AppArmor profiles.
 
 * If there is a broken AppArmor profile, remove it, such as +
