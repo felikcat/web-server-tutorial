@@ -295,7 +295,7 @@ image:qbittorrent apparmor.png[] +
 Remove `/storage/` if not applicable.
 
 Now we can enforce AppArmor profiles for our web-facing applications: +
-`sudo aa-enforce -d /etc/apparmor.d qbittorrent-nox php-fpm`
+`sudo aa-enforce -d /etc/apparmor.d qbittorrent-nox php-fpm sshd`
 
 Restart the server to apply our GRUB and sysctl changes: +
 `sudo systemctl reboot`
