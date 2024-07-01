@@ -125,7 +125,7 @@ Now we automatically harden: +
 `sudo ansible-playbook ~/harden.yaml`
 
 Complete the firewall setup; this will kick you out of the SSH session, relogin in with the new SSH port. +
-`sudo ufw default deny incoming; ufw enable`
+`sudo ufw default deny incoming; sudo ufw default allow outgoing; sudo ufw enable`
 
 Sudo edit `/etc/default/grub`:
 
@@ -467,11 +467,6 @@ image:plex port.png[]
 ====
 
 == Tips
-If you end up enforcing all of apparmor.d's rules, here's what I recommend putting on no enforcement and no warnings: +
-`sudo aa-disable sudo apt apt-methods-file apt-extracttemplates apt-listchanges dpkg-split dpkg-deb unattended-upgrade aa-notify`
-
-* Disabling the `sudo` apparmor.d profile is my preference due to it requiring you to enter your password on every single `sudo` command ran, which gets annoying fast.
-
 Check your successful server logins occassionally with: +
 `sudo last -w -F`
 
